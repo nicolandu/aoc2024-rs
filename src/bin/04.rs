@@ -9,7 +9,7 @@ type AllMap = (
     HashSet<(isize, isize)>,
 );
 
-pub fn build_all_map(input: &str) -> AllMap {
+fn build_all_map(input: &str) -> AllMap {
     let g: Vec<Vec<char>> = input.lines().map(|l| l.chars().collect()).collect();
     let mut x = HashSet::new();
     let mut m = HashSet::new();

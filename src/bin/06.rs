@@ -6,19 +6,19 @@ advent_of_code::solution!(6);
 
 /* COORD SYSTEM: (row, col) */
 #[derive(Debug, Clone)]
-pub struct Map {
-    pub obstructed: Vec<Vec<bool>>,
-    pub start: (isize, isize),
-    pub start_orientation: (isize, isize), // unit vector
-    pub width: isize,
-    pub height: isize,
+struct Map {
+    obstructed: Vec<Vec<bool>>,
+    start: (isize, isize),
+    start_orientation: (isize, isize), // unit vector
+    width: isize,
+    height: isize,
 }
 
 impl Map {
-    pub fn inside(&self, pos: (isize, isize)) -> bool {
+    fn inside(&self, pos: (isize, isize)) -> bool {
         0 <= pos.0 && pos.0 < self.height && 0 <= pos.1 && pos.1 < self.width
     }
-    pub fn collides(&self, pos: (isize, isize)) -> bool {
+    fn collides(&self, pos: (isize, isize)) -> bool {
         if !self.inside(pos) {
             return false;
         }
@@ -26,7 +26,7 @@ impl Map {
     }
 }
 
-pub fn parse_map(input: &str) -> Map {
+fn parse_map(input: &str) -> Map {
     let mut start = (0isize, 0isize);
     let obstructed: Vec<Vec<_>> = input
         .lines()
