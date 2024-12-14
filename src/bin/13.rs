@@ -67,11 +67,6 @@ pub fn part_one(input: &str) -> Option<i64> {
 pub fn part_two(input: &str) -> Option<i64> {
     Some(
         parse(input)
-            .map(|p| Prize {
-                a: p.a,
-                b: p.b,
-                tgt: p.tgt,
-            })
             .filter_map(|p| {
                 // try to get in general diagonal direction, as differences in x and y are minor
                 // compared to their value
