@@ -1,12 +1,9 @@
-use eqsolver::multivariable::MultiVarNewtonFD;
-use nalgebra::{vector, Vector2};
-
 advent_of_code::solution!(13);
 
 struct Prize {
-    a: Vector2<f64>,
-    b: Vector2<f64>,
-    tgt: Vector2<f64>,
+    a: (i64, i64),
+    b: (i64, i64),
+    tgt: (i64, i64),
 }
 
 // no vectors have either x=0 nor y=0.
@@ -33,9 +30,9 @@ fn parse(input: &str) -> impl Iterator<Item = Prize> + use<'_> {
         let ty = ty.parse().unwrap();
 
         Some(Prize {
-            a: Vector2::new(ax, ay),
-            b: Vector2::new(bx, by),
-            tgt: Vector2::new(tx, ty),
+            a: (ax, ay),
+            b: (bx, by),
+            tgt: (tx, ty),
         })
     })
 }
@@ -44,21 +41,19 @@ pub fn part_one(input: &str) -> Option<i64> {
     Some(
         parse(input)
             .filter_map(|p| {
-                let f = |v: Vector2<f64>| p.tgt - p.a * v[0] - p.b * v[1];
-                let Ok(sol) = MultiVarNewtonFD::new(f)
-                    .with_itermax(200)
-                    .solve(vector![100., 100.])
-                else {
-                    return None;
-                };
-
-                let (a, b) = (sol[0].round(), sol[1].round());
-                // we're off, not a good solution
-                if f(vector![a, b]).norm() > 1e-3 {
-                    return None;
-                };
-
-                Some(a as i64 * 3 + b as i64)
+                let (ax, ay) = p.a;
+                let (bx, by) = p.b;
+                let (tx, ty) = p.tgt;
+                // thanks to WolframAlpha:
+                // https://www.wolframalpha.com/input?i2d=true&i=a%7B%7BSubscript%5Ba%2Cx%5D%7D%2C%7BSubscript%5Ba%2Cy%5D%7D%7D%2Bb%7B%7BSubscript%5Bb%2Cx%5D%7D%2C%7BSubscript%5Bb%2Cy%5D%7D%7D%3D%7B%7BSubscript%5Bt%2Cx%5D%7D%2C%7BSubscript%5Bt%2Cy%5D%7D%7D+solve+for+%5C%2840%29a%5C%2844%29b%5C%2841%29
+                let a = (by * tx - bx * ty) / (ax * by - ay * bx);
+                let b = (ay * tx - ax * ty) / (ay * bx - ax * by);
+                // check if solution works
+                if a * ax + b * bx == tx && a * ay + b * by == ty {
+                    Some(a * 3 + b)
+                } else {
+                    None
+                }
             })
             .sum(),
     )
@@ -70,50 +65,22 @@ pub fn part_two(input: &str) -> Option<i64> {
             .map(|p| Prize {
                 a: p.a,
                 b: p.b,
-                tgt: p.tgt,
+                tgt: (p.tgt.0 + 10000000000000, p.tgt.1 + 10000000000000),
             })
             .filter_map(|p| {
-                // try to get in general diagonal direction, as differences in x and y are minor
-                // compared to their value
-                let f = |v: Vector2<f64>| {
-                    let guess = p.a * v[0] + p.b * v[1];
-                    let target = vector![1., 1.,];
-                    target - guess
-                };
-
-                // how much of a and b in a [1,1] vector?
-                let res = MultiVarNewtonFD::new(f)
-                    .with_itermax(2000)
-                    .with_tol(1e-10)
-                    .solve(vector![0.1, 0.1])
-                    .expect("solve error");
-
-                // how much of a and b to get close to answer?
-                let (a_init, b_init) = (
-                    (res[0] * (1e13 - 10000.)).round() as i64,
-                    (res[1] * (1e13 - 10000.)).round() as i64,
-                );
-
-                let err_x = 10000000000000 - a_init * (p.a[0] as i64) - b_init * (p.b[0] as i64);
-                let err_y = 10000000000000 - a_init * (p.a[1] as i64) - b_init * (p.b[1] as i64);
-                let tgt = p.tgt + Vector2::new(err_x as f64, err_y as f64);
-
-                let g = |v: Vector2<f64>| tgt - p.a * v[0] - p.b * v[1];
-                let res = MultiVarNewtonFD::new(g)
-                    .with_itermax(200)
-                    .solve(vector![100., 100.]);
-                let Ok(sol) = res else {
-                    dbg!(&res);
-                    return None;
-                };
-
-                let (a, b) = (sol[0].round(), sol[1].round());
-                // we're off, not a good solution
-                if g(vector![a, b]).norm() > 1e-3 {
-                    return None;
-                };
-
-                Some((a as i64 + a_init) * 3 + (b as i64 + b_init))
+                let (ax, ay) = p.a;
+                let (bx, by) = p.b;
+                let (tx, ty) = p.tgt;
+                // thanks to WolframAlpha:
+                // https://www.wolframalpha.com/input?i2d=true&i=a%7B%7BSubscript%5Ba%2Cx%5D%7D%2C%7BSubscript%5Ba%2Cy%5D%7D%7D%2Bb%7B%7BSubscript%5Bb%2Cx%5D%7D%2C%7BSubscript%5Bb%2Cy%5D%7D%7D%3D%7B%7BSubscript%5Bt%2Cx%5D%7D%2C%7BSubscript%5Bt%2Cy%5D%7D%7D+solve+for+%5C%2840%29a%5C%2844%29b%5C%2841%29
+                let a = (by * tx - bx * ty) / (ax * by - ay * bx);
+                let b = (ay * tx - ax * ty) / (ay * bx - ax * by);
+                // check if solution works
+                if a * ax + b * bx == tx && a * ay + b * by == ty {
+                    Some(a * 3 + b)
+                } else {
+                    None
+                }
             })
             .sum(),
     )

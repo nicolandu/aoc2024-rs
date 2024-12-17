@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Display;
 use std::ops::{Index, IndexMut};
 
 pub mod template;
@@ -37,22 +39,37 @@ where
 
 impl<T> Index<(isize, isize)> for Grid<T> {
     type Output = T;
-    // Index by (y,x).
+    /// Index by (y,x).
     fn index(&self, pos: (isize, isize)) -> &Self::Output {
         self.get(pos).expect("Invalid index into Grid.")
     }
 }
 
 impl<T> IndexMut<(isize, isize)> for Grid<T> {
-    // Index by (y,x).
+    /// Index by (y,x).
     fn index_mut(&mut self, pos: (isize, isize)) -> &mut Self::Output {
         self.get_mut(pos).expect("Invalid index into Grid.")
     }
 }
 
+impl<T> Display for Grid<T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for y in 0..self.height {
+            for x in 0..self.width {
+                write!(f, "{}", self[(y, x)])?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
 impl<T> Grid<T> {
-    // Parse 2D map into Grid<T>. transform takes ((y,x),char) -> T. Panics if lines are of unequal
-    // length.
+    /// Parse 2D map into Grid<T>. transform takes F((y,x),char) -> T. Panics if lines are of unequal
+    /// length.
     pub fn parse<F: FnMut((isize, isize), char) -> T>(input: &str, mut transform: F) -> Grid<T> {
         let g: Grid<T> = input
             .lines()
@@ -74,12 +91,12 @@ impl<T> Grid<T> {
         g
     }
 
-    // Index by (y,x).
+    /// Index by (y,x).
     pub fn is_inside(&self, p: (isize, isize)) -> bool {
         0 <= p.0 && p.0 < self.height && 0 <= p.1 && p.1 < self.width
     }
 
-    // Index by (y,x).
+    /// Index by (y,x).
     pub fn get(&self, p: (isize, isize)) -> Option<&T> {
         if !self.is_inside(p) {
             return None;
@@ -89,7 +106,7 @@ impl<T> Grid<T> {
             .and_then(|row| row.get(usize::try_from(p.1).unwrap()))
     }
 
-    // Index by (y,x).
+    /// Index by (y,x).
     pub fn get_mut(&mut self, p: (isize, isize)) -> Option<&mut T> {
         if !self.is_inside(p) {
             return None;
@@ -99,8 +116,8 @@ impl<T> Grid<T> {
             .and_then(|row| row.get_mut(usize::try_from(p.1).unwrap()))
     }
 
-    // Iterator over ((y,x),&val).
-    // Index by (y,x).
+    /// Iterator over ((y,x),&val).
+    /// Index by (y,x).
     pub fn neighbours_orthogonal(
         &self,
         p: (isize, isize),
@@ -114,7 +131,7 @@ impl<T> Grid<T> {
             })
     }
 
-    // Iterator over ((y,x),&val).
+    /// Iterator over ((y,x),&val).
     pub fn neighbours_diagonal(
         &self,
         p: (isize, isize),
@@ -128,7 +145,7 @@ impl<T> Grid<T> {
             })
     }
 
-    // Iterator over ((y,x),&val).
+    /// Iterator over ((y,x),&val).
     pub fn neighbours_all(
         &self,
         p: (isize, isize),
@@ -142,7 +159,7 @@ impl<T> Grid<T> {
             })
     }
 
-    // Returns an iterator over ((y,x),val). Consumes the Grid.
+    /// Returns an iterator over ((y,x),val). Consumes the Grid.
     pub fn into_iter_tiles(self) -> impl IntoIterator<Item = ((isize, isize), T)> {
         self.contents.into_iter().enumerate().flat_map(|(y, row)| {
             row.into_iter().enumerate().map(move |(x, elem)| {
@@ -154,7 +171,7 @@ impl<T> Grid<T> {
         })
     }
 
-    // Returns an iterator over ((y,x),&val).
+    /// Returns an iterator over ((y,x),&val).
     pub fn iter_tiles(&self) -> impl Iterator<Item = ((isize, isize), &T)> + use<'_, T> {
         self.contents.iter().enumerate().flat_map(|(y, row)| {
             row.iter().enumerate().map(move |(x, elem)| {
@@ -166,7 +183,7 @@ impl<T> Grid<T> {
         })
     }
 
-    // Returns an iterator over ((y,x),&mut val).
+    /// Returns an iterator over ((y,x),&mut val).
     pub fn iter_tiles_mut(
         &mut self,
     ) -> impl Iterator<Item = ((isize, isize), &mut T)> + use<'_, T> {
@@ -180,7 +197,7 @@ impl<T> Grid<T> {
         })
     }
 
-    // Clone Grid<T> into Grid<U> with transform. transform takes ((y,x),&T) -> U.
+    /// Clone Grid<T> into Grid<U> with transform. transform takes F((y,x),&T) -> U.
     pub fn map_collect<U, F: FnMut((isize, isize), &T) -> U>(&self, mut transform: F) -> Grid<U> {
         Grid {
             width: self.width,

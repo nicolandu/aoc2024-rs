@@ -1,122 +1,144 @@
-use eqsolver::multivariable::MultiVarNewtonFD;
-use nalgebra::{vector, Vector2};
+use std::io::Write;
+advent_of_code::solution!(14);
 
-advent_of_code::solution!(13);
+use std::{
+    fs::{create_dir_all, File},
+    io::BufWriter,
+    path::Path,
+};
 
-struct Prize {
-    a: Vector2<f64>,
-    b: Vector2<f64>,
-    tgt: Vector2<f64>,
-}
+use regex::Regex;
 
-// no vectors have either x=0 nor y=0.
-fn parse(input: &str) -> impl Iterator<Item = Prize> + use<'_> {
-    input.split("\n\n").filter_map(|p| {
-        let mut l = p.lines();
-        let a = l.next()?;
-        let b = l.next()?;
-        let t = l.next()?;
+const WIDTH: isize = 101;
+const HEIGHT: isize = 103;
 
-        let a = a.strip_prefix("Button A: X+").unwrap();
-        let b = b.strip_prefix("Button B: X+").unwrap();
-        let t = t.strip_prefix("Prize: X=").unwrap();
+// X,Y here
+fn parse(input: &str, width: isize, height: isize) -> Vec<Vec<(isize, isize)>> {
+    let re = Regex::new(r"(?m)^p=(?<px>\d+),(?<py>\d+) v=(?<vx>-?\d+),(?<vy>-?\d+)$")
+        .expect("failed regex");
 
-        let (ax, ay) = a.split_once(", Y+").unwrap();
-        let (bx, by) = b.split_once(", Y+").unwrap();
-        let (tx, ty) = t.split_once(", Y=").unwrap();
+    re.captures_iter(input)
+        .map(|caps| {
+            let start: (isize, isize) = (
+                caps.name("px")
+                    .unwrap()
+                    .as_str()
+                    .parse()
+                    .expect("parse error"),
+                caps.name("py")
+                    .unwrap()
+                    .as_str()
+                    .parse()
+                    .expect("parse error"),
+            );
+            let vel: (isize, isize) = (
+                caps.name("vx")
+                    .unwrap()
+                    .as_str()
+                    .parse()
+                    .expect("parse error"),
+                caps.name("vy")
+                    .unwrap()
+                    .as_str()
+                    .parse()
+                    .expect("parse error"),
+            );
 
-        let ax = ax.parse().unwrap();
-        let ay = ay.parse().unwrap();
-        let bx = bx.parse().unwrap();
-        let by = by.parse().unwrap();
-        let tx = tx.parse().unwrap();
-        let ty = ty.parse().unwrap();
+            let mut cycle = vec![start];
+            let mut pos = start;
 
-        Some(Prize {
-            a: Vector2::new(ax, ay),
-            b: Vector2::new(bx, by),
-            tgt: Vector2::new(tx, ty),
+            loop {
+                pos.0 += vel.0;
+                // negative number shenanigans
+                pos.0 = pos.0.rem_euclid(width);
+                pos.1 += vel.1;
+                // negative number shenanigans
+                pos.1 = pos.1.rem_euclid(height);
+
+                if pos == start {
+                    break;
+                };
+                cycle.push(pos);
+            }
+            cycle
         })
+        .collect()
+}
+
+// Allows to decouple width and height for the test harness.
+fn simulate_pt1(input: &str, width: isize, height: isize, timesteps: usize) -> usize {
+    let routes = parse(input, width, height);
+    let positions: Vec<_> = routes.iter().map(|r| r[timesteps % r.len()]).collect();
+    [
+        ((0..width / 2), (0..height / 2)),
+        ((width / 2 + 1..width), (0..height / 2)),
+        ((0..width / 2), (height / 2 + 1..height)),
+        ((width / 2 + 1..width), (height / 2 + 1..height)),
+    ]
+    .iter()
+    .map(|(rx, ry)| {
+        positions
+            .iter()
+            .filter(|(px, py)| rx.contains(px) && ry.contains(py))
+            .count()
     })
+    .product()
 }
 
-pub fn part_one(input: &str) -> Option<i64> {
-    Some(
-        parse(input)
-            .filter_map(|p| {
-                let f = |v: Vector2<f64>| p.tgt - p.a * v[0] - p.b * v[1];
-                let Ok(sol) = MultiVarNewtonFD::new(f)
-                    .with_itermax(200)
-                    .solve(vector![100., 100.])
-                else {
-                    return None;
-                };
-
-                let (a, b) = (sol[0].round(), sol[1].round());
-                // we're off, not a good solution
-                if f(vector![a, b]).norm() > 1e-3 {
-                    return None;
-                };
-
-                Some(a as i64 * 3 + b as i64)
-            })
-            .sum(),
-    )
+pub fn part_one(input: &str) -> Option<usize> {
+    Some(simulate_pt1(input, WIDTH, HEIGHT, 100))
 }
 
-pub fn part_two(input: &str) -> Option<i64> {
-    Some(
-        parse(input)
-            .map(|p| Prize {
-                a: p.a,
-                b: p.b,
-                tgt: p.tgt,
-            })
-            .filter_map(|p| {
-                // try to get in general diagonal direction, as differences in x and y are minor
-                // compared to their value
-                let f = |v: Vector2<f64>| {
-                    let guess = p.a * v[0] + p.b * v[1];
-                    let target = vector![1., 1.,];
-                    target - guess
-                };
+// We reverse engineer the initial setup by which the problem is generated and in which no tiles
+// overlap.
+fn simulate_pt2(input: &str, width: isize, height: isize, pathname: &str) -> &'static str {
+    let routes = parse(input, width, height);
+    create_dir_all(format!("{}/{}", pathname, DAY)).unwrap();
 
-                // how much of a and b in a [1,1] vector?
-                let res = MultiVarNewtonFD::new(f)
-                    .with_itermax(2000)
-                    .with_tol(1e-10)
-                    .solve(vector![0.1, 0.1])
-                    .expect("solve error");
+    for time in 1..=10000 {
+        let positions: Vec<_> = routes.iter().map(|r| r[time % r.len()]).collect();
 
-                // how much of a and b to get close to answer?
-                let (a_init, b_init) = (
-                    (res[0] * (1e13 - 10000.)).round() as i64,
-                    (res[1] * (1e13 - 10000.)).round() as i64,
-                );
+        if time % 1000 == 0 {
+            println!("{}", time);
+        }
 
-                let err_x = 10000000000000 - a_init * (p.a[0] as i64) - b_init * (p.b[0] as i64);
-                let err_y = 10000000000000 - a_init * (p.a[1] as i64) - b_init * (p.b[1] as i64);
-                let tgt = p.tgt + Vector2::new(err_x as f64, err_y as f64);
+        let name = format!(r"{}/{}/{:05}.png", pathname, DAY, time);
+        let path = Path::new(&name);
+        let file = File::create(path).unwrap();
+        let w = BufWriter::new(file);
 
-                let g = |v: Vector2<f64>| tgt - p.a * v[0] - p.b * v[1];
-                let res = MultiVarNewtonFD::new(g)
-                    .with_itermax(200)
-                    .solve(vector![100., 100.]);
-                let Ok(sol) = res else {
-                    dbg!(&res);
-                    return None;
-                };
+        let mut encoder = png::Encoder::new(w, width as u32, height as u32);
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
+        encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2)); // 1.0 / 2.2, unscaled, but rounded
+        let source_chromaticities = png::SourceChromaticities::new(
+            // Using unscaled instantiation here
+            (0.31270, 0.32900),
+            (0.64000, 0.33000),
+            (0.30000, 0.60000),
+            (0.15000, 0.06000),
+        );
+        encoder.set_source_chromaticities(source_chromaticities);
+        let mut writer = encoder.write_header().unwrap();
 
-                let (a, b) = (sol[0].round(), sol[1].round());
-                // we're off, not a good solution
-                if g(vector![a, b]).norm() > 1e-3 {
-                    return None;
-                };
+        let mut data = Vec::<u8>::new();
+        for y in 0..height {
+            for x in 0..width {
+                data.extend(if positions.iter().any(|p| *p == (x, y)) {
+                    [0, 255, 0]
+                } else {
+                    [0, 0, 0]
+                });
+            }
+        }
+        writer.write_image_data(&data).unwrap(); // Save        let positions: Vec<_> = routes.iter().map(|r| r[timesteps % r.len()]).collect();
+    }
+    "Should be OK"
+}
 
-                Some((a as i64 + a_init) * 3 + (b as i64 + b_init))
-            })
-            .sum(),
-    )
+pub fn part_two(input: &str) -> Option<&'static str> {
+    Some(simulate_pt2(input, WIDTH, HEIGHT, "./imgs/solve"))
 }
 
 #[cfg(test)]
@@ -125,7 +147,22 @@ mod tests {
 
     #[test]
     fn test_part_one() {
-        let result = part_one(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, Some(480));
+        let result = simulate_pt1(
+            &advent_of_code::template::read_file("examples", DAY),
+            11,
+            7,
+            100,
+        );
+        assert_eq!(result, 12);
+    }
+
+    #[test]
+    fn test_part_two() {
+        simulate_pt2(
+            &advent_of_code::template::read_file("examples", DAY),
+            11,
+            7,
+            "./imgs/test",
+        );
     }
 }
