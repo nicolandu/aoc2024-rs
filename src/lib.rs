@@ -68,6 +68,20 @@ where
 }
 
 impl<T> Grid<T> {
+    /// Construct a new Grid with defined dimensions. transform takes F((y,x)) -> U.
+    pub fn new<F: FnMut((isize, isize)) -> T>(
+        height: isize,
+        width: isize,
+        mut transform: F,
+    ) -> Grid<T> {
+        Grid {
+            width,
+            height,
+            contents: (0..height)
+                .map(|y| (0..width).map(|x| transform((y, x))).collect())
+                .collect(),
+        }
+    }
     /// Parse 2D map into Grid<T>. transform takes F((y,x),char) -> T. Panics if lines are of unequal
     /// length.
     pub fn parse<F: FnMut((isize, isize), char) -> T>(input: &str, mut transform: F) -> Grid<T> {

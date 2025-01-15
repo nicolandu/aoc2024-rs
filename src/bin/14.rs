@@ -1,11 +1,4 @@
-use std::io::Write;
 advent_of_code::solution!(14);
-
-use std::{
-    fs::{create_dir_all, File},
-    io::BufWriter,
-    path::Path,
-};
 
 use regex::Regex;
 
@@ -91,54 +84,26 @@ pub fn part_one(input: &str) -> Option<usize> {
 
 // We reverse engineer the initial setup by which the problem is generated and in which no tiles
 // overlap.
-fn simulate_pt2(input: &str, width: isize, height: isize, pathname: &str) -> &'static str {
+fn simulate_pt2(input: &str, width: isize, height: isize) -> Option<usize> {
     let routes = parse(input, width, height);
-    create_dir_all(format!("{}/{}", pathname, DAY)).unwrap();
 
     for time in 1..=10000 {
-        let positions: Vec<_> = routes.iter().map(|r| r[time % r.len()]).collect();
+        let mut positions: Vec<_> = routes.iter().map(|r| r[time % r.len()]).collect();
 
-        if time % 1000 == 0 {
-            println!("{}", time);
+        positions.sort();
+        // Make sure all are different
+        if positions
+            .windows(2)
+            .all(|s| s[0].0 != s[1].0 || s[0].1 != s[1].1)
+        {
+            return Some(time);
         }
-
-        let name = format!(r"{}/{}/{:05}.png", pathname, DAY, time);
-        let path = Path::new(&name);
-        let file = File::create(path).unwrap();
-        let w = BufWriter::new(file);
-
-        let mut encoder = png::Encoder::new(w, width as u32, height as u32);
-        encoder.set_color(png::ColorType::Rgb);
-        encoder.set_depth(png::BitDepth::Eight);
-        encoder.set_source_gamma(png::ScaledFloat::from_scaled(45455)); // 1.0 / 2.2, scaled by 100000
-        encoder.set_source_gamma(png::ScaledFloat::new(1.0 / 2.2)); // 1.0 / 2.2, unscaled, but rounded
-        let source_chromaticities = png::SourceChromaticities::new(
-            // Using unscaled instantiation here
-            (0.31270, 0.32900),
-            (0.64000, 0.33000),
-            (0.30000, 0.60000),
-            (0.15000, 0.06000),
-        );
-        encoder.set_source_chromaticities(source_chromaticities);
-        let mut writer = encoder.write_header().unwrap();
-
-        let mut data = Vec::<u8>::new();
-        for y in 0..height {
-            for x in 0..width {
-                data.extend(if positions.iter().any(|p| *p == (x, y)) {
-                    [0, 255, 0]
-                } else {
-                    [0, 0, 0]
-                });
-            }
-        }
-        writer.write_image_data(&data).unwrap(); // Save        let positions: Vec<_> = routes.iter().map(|r| r[timesteps % r.len()]).collect();
     }
-    "Should be OK"
+    None
 }
 
-pub fn part_two(input: &str) -> Option<&'static str> {
-    Some(simulate_pt2(input, WIDTH, HEIGHT, "./imgs/solve"))
+pub fn part_two(input: &str) -> Option<usize> {
+    simulate_pt2(input, WIDTH, HEIGHT)
 }
 
 #[cfg(test)]
@@ -154,15 +119,5 @@ mod tests {
             100,
         );
         assert_eq!(result, 12);
-    }
-
-    #[test]
-    fn test_part_two() {
-        simulate_pt2(
-            &advent_of_code::template::read_file("examples", DAY),
-            11,
-            7,
-            "./imgs/test",
-        );
     }
 }
